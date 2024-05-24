@@ -1,0 +1,138 @@
+#include <iostream>
+#include <Box2D/Box2D.h>
+#include <SDL2/SDL.h>
+
+const float32 WORLD_WIDTH = 100.0f;
+const float32 WORLD_HEIGHT = 100.0f;
+const float32 BALL_RADIUS = 5.0f;
+const float32 OBSTACLE_SIZE = 10.0f;
+
+int main(int argc, char* argv[]) {
+    // Inicialización de SDL
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
+        return 1;
+    }
+
+    SDL_Window* window = SDL_CreateWindow("Pelota con Obstáculos", 100, 100, 800, 600, SDL_WINDOW_SHOWN);
+    if (window == nullptr) {
+        std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
+        SDL_Quit();
+        return 1;
+    }
+
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (renderer == nullptr) {
+        SDL_DestroyWindow(window);
+        std::cerr << "SDL_CreateRenderer Error: " << SDL_GetError() << std::endl;
+        SDL_Quit();
+        return 1;
+    }
+
+    // Configuración del mundo de Box2D
+    b2Vec2 gravity(0.0f, 0.0f);
+    b2World world(gravity);
+
+    // Creación de las barreras
+    b2BodyDef barrierBodyDef;
+    barrierBodyDef.position.Set(0.0f, 0.0f);
+    b2Body* barrierBody = world.CreateBody(&barrierBodyDef);
+
+    b2EdgeShape barrierBox;
+    barrierBox.Set(b2Vec2(0.0f, 0.0f), b2Vec2(WORLD_WIDTH, 0.0f));
+    barrierBody->CreateFixture(&barrierBox, 0.0f);
+
+    barrierBox.Set(b2Vec2(0.0f, 0.0f), b2Vec2(0.0f, WORLD_HEIGHT));
+    barrierBody->CreateFixture(&barrierBox, 0.0f);
+
+    barrierBox.Set(b2Vec2(0.0f, WORLD_HEIGHT), b2Vec2(WORLD_WIDTH, WORLD_HEIGHT));
+    barrierBody->CreateFixture(&barrierBox, 0.0f);
+
+    barrierBox.Set(b2Vec2(WORLD_WIDTH, 0.0f), b2Vec2(WORLD_WIDTH, WORLD_HEIGHT));
+    barrierBody->CreateFixture(&barrierBox, 0.0f);
+
+    // Creación de la pelota
+    b2BodyDef ballBodyDef;
+    ballBodyDef.type = b2_dynamicBody;
+    ballBodyDef.position.Set(WORLD_WIDTH / 2.0f, WORLD_HEIGHT / 2.0f);
+    b2Body* ballBody = world.CreateBody(&ballBodyDef);
+
+    b2CircleShape ballShape;
+    ballShape.m_radius = BALL_RADIUS;
+
+    b2FixtureDef ballFixtureDef;
+    ballFixtureDef.shape = &ballShape;
+    ballFixtureDef.density = 1.0f;
+    ballFixtureDef.friction = 0.3f;
+    ballFixtureDef.restitution = 1.0f;  // Rebote perfecto
+    ballBody->CreateFixture(&ballFixtureDef);
+
+    // Creación de obstáculos
+    b2BodyDef obstacleBodyDef;
+    obstacleBodyDef.position.Set(WORLD_WIDTH / 4.0f, WORLD_HEIGHT / 2.0f);
+    b2Body* obstacleBody1 = world.CreateBody(&obstacleBodyDef);
+
+    b2PolygonShape obstacleBox;
+    obstacleBox.SetAsBox(OBSTACLE_SIZE / 2.0f, OBSTACLE_SIZE / 2.0f);
+    obstacleBody1->CreateFixture(&obstacleBox, 0.0f);
+
+    obstacleBodyDef.position.Set(3 * WORLD_WIDTH / 4.0f, WORLD_HEIGHT / 2.0f);
+    b2Body* obstacleBody2 = world.CreateBody(&obstacleBodyDef);
+    obstacleBody2->CreateFixture(&obstacleBox, 0.0f);
+
+    // Bucle principal
+    bool quit = false;
+    SDL_Event e;
+
+    while (!quit) {
+        while (SDL_PollEvent(&e) != 0) {
+            if (e.type == SDL_QUIT) {
+                quit = true;
+            }
+        }
+
+        world.Step(1.0f / 60.0f, 6, 2);
+
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderClear(renderer);
+
+        // Renderizar la pelota
+        b2Vec2 position = ballBody->GetPosition();
+        SDL_Rect ballRect = {
+            static_cast<int>(position.x * 800.0f / WORLD_WIDTH - BALL_RADIUS * 800.0f / WORLD_WIDTH),
+            600 - static_cast<int>(position.y * 600.0f / WORLD_HEIGHT + BALL_RADIUS * 600.0f / WORLD_HEIGHT),
+            static_cast<int>(BALL_RADIUS * 2 * 800.0f / WORLD_WIDTH),
+            static_cast<int>(BALL_RADIUS * 2 * 600.0f / WORLD_HEIGHT)
+        };
+        SDL_RenderFillRect(renderer, &ballRect);
+
+        // Renderizar obstáculos
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+
+        b2Vec2 obstaclePosition = obstacleBody1->GetPosition();
+        SDL_Rect obstacleRect1 = {
+            static_cast<int>(obstaclePosition.x * 800.0f / WORLD_WIDTH - OBSTACLE_SIZE * 800.0f / WORLD_WIDTH / 2.0f),
+            600 - static_cast<int>(obstaclePosition.y * 600.0f / WORLD_HEIGHT + OBSTACLE_SIZE * 600.0f / WORLD_HEIGHT / 2.0f),
+            static_cast<int>(OBSTACLE_SIZE * 800.0f / WORLD_WIDTH),
+            static_cast<int>(OBSTACLE_SIZE * 600.0f / WORLD_HEIGHT)
+        };
+        SDL_RenderFillRect(renderer, &obstacleRect1);
+
+        obstaclePosition = obstacleBody2->GetPosition();
+        SDL_Rect obstacleRect2 = {
+            static_cast<int>(obstaclePosition.x * 800.0f / WORLD_WIDTH - OBSTACLE_SIZE * 800.0f / WORLD_WIDTH / 2.0f),
+            600 - static_cast<int>(obstaclePosition.y * 600.0f / WORLD_HEIGHT + OBSTACLE_SIZE * 600.0f / WORLD_HEIGHT / 2.0f),
+            static_cast<int>(OBSTACLE_SIZE * 800.0f / WORLD_WIDTH),
+            static_cast<int>(OBSTACLE_SIZE * 600.0f / WORLD_HEIGHT)
+        };
+        SDL_RenderFillRect(renderer, &obstacleRect2);
+
+        SDL_RenderPresent(renderer);
+    }
+
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+
+    return 0;
+}
